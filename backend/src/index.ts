@@ -76,7 +76,7 @@ wss.on("connection", (ws) => {
                 type: "userLeft",
                 userId,
             },
-            userId
+            // userId
         );
 
         // 4. Clean up the mapping
@@ -252,11 +252,6 @@ function handleUserMessage(message: any, ws: WebSocket) {
                 return;
             }
             
-
-            if (!targetUser) {
-                console.error(`Target user ${toUserId} not found in room ${room.roomId}`);
-                return;
-            }
             console.log(`Found target user: ${toUserId}`);
 
             const forwardMessage = {

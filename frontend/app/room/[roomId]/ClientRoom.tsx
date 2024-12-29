@@ -83,18 +83,21 @@ export default function ClientRoom({ roomId }: Props) {
         setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
     }
 
-    // function addTracksAfterICEGathering(pc: RTCPeerConnection) {
-    //     if (localStreamRef.current) {
-    //         localStreamRef.current.getTracks().forEach((track) => {
-    //             console.log(
-    //                 `Adding local track (${track.kind}) to PeerConnection`
-    //             );
-    //             pc.addTrack(track, localStreamRef.current);
-    //         });
-    //     } else {
-    //         console.warn("No local stream available to attach tracks.");
-    //     }
-    // }
+    function addTracksAfterICEGathering(pc: RTCPeerConnection) {
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+                const existingSenders = pc.getSenders().map((sender) => sender.track);
+                if (!existingSenders.includes(track)) {
+                    console.log(`Adding local track (${track.kind}) to PeerConnection`);
+                    pc.addTrack(track, localStreamRef.current!);
+                } else {
+                    console.log(`Track (${track.kind}) already added to PeerConnection`);
+                }
+            });
+        } else {
+            console.warn("No local stream available to attach tracks.");
+        }
+    }
 
     useEffect(() => {
         const initializeConnection = async () => {
@@ -332,7 +335,40 @@ export default function ClientRoom({ roomId }: Props) {
                     `ICE Connection State for ${remoteUserId}:`,
                     pc.iceConnectionState
                 );
+                if (pc.iceConnectionState === "connected") {
+                    console.log("ICE connection established. Adding tracks (if needed).");
+                    addTracksAfterICEGathering(pc);
+                }
             };
+
+            // Check track addition on both sides
+            const logPeerConnectionTracks = () => {
+                const senders = pc.getSenders();
+                const receivers = pc.getReceivers();
+                
+                console.log('Peer Connection Tracks:', {
+                senders: senders.map(sender => ({
+                    track: sender.track?.kind,
+                    trackId: sender.track?.id
+                })),
+                receivers: receivers.map(receiver => ({
+                    track: receiver.track?.kind,
+                    trackId: receiver.track?.id
+                }))
+                });
+            }
+            
+            pc.ontrack = (event) => {
+                console.log(
+                    `Received track from -- ${remoteUserId}:`,
+                    event.track
+                );
+                addRemoteStream(remoteUserId, event.track);
+                logPeerConnectionTracks();
+                // Update the keys to re-render RemoteVideo components
+                setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
+            };
+  
         } catch (err) {
             console.error("Error in handleNewUser:", err);
         }
@@ -346,8 +382,9 @@ export default function ClientRoom({ roomId }: Props) {
     ) {
         try {
             console.log(
-                "Handling offer from and Creating peer connection:",
+                "Handling offer from",
                 remoteUserId,
+                " and Creating peer connection with ",
                 "Offer:",
                 offer
             );
@@ -389,18 +426,6 @@ export default function ClientRoom({ roomId }: Props) {
                 }
             };
 
-            // // Attach local stream to the PeerConnection
-            // if (localStreamRef.current) {
-            //     localStreamRef.current.getTracks().forEach((track) => {
-            //         console.log(
-            //             `Adding local track (${track.kind}) to PeerConnection`
-            //         );
-            //         pc.addTrack(track, localStreamRef.current);
-            //     });
-            // } else {
-            //     console.warn("No local stream available to attach tracks.");
-            // }
-
             await pc.setRemoteDescription(offer);
             console.log("Successfully set remote description", remoteUserId);
 
@@ -416,29 +441,6 @@ export default function ClientRoom({ roomId }: Props) {
             // console.log("Sending answer message:", message);
             sendMessage(ws, message);
 
-            pc.ontrack = (event) => {
-                console.log(
-                    `Received track from ${remoteUserId}:`,
-                    event.track
-                );
-                addRemoteStream(remoteUserId, event.track);
-
-                // Debugging the MediaStream
-                const stream = remoteStreamsRef.current[remoteUserId];
-                console.log("Tracks in the remote stream:", stream.getTracks());
-                stream.getTracks().forEach((track) => {
-                    console.log(
-                        `Track kind: ${track.kind}, readyState: ${track.readyState}`
-                    );
-                });
-
-                // Update the keys to re-render RemoteVideo components
-                setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
-                console.log(
-                    `Added the remote stream received from ${remoteUserId} -- ${event.track} --`,
-                    remoteStreamsRef.current[remoteUserId]
-                );
-            };
 
             pc.onconnectionstatechange = () => {
                 console.log(
@@ -457,10 +459,37 @@ export default function ClientRoom({ roomId }: Props) {
                     `ICE Connection State for ${toUserId}:`,
                     pc.iceConnectionState
                 );
-                // if (pc.iceConnectionState === "connected") {
-                //     addTracksAfterICEGathering(pc);
-                // }
+                if (pc.iceConnectionState === "connected") {
+                    addTracksAfterICEGathering(pc);
+                }
             };
+
+            // Check track addition on both sides
+            const logPeerConnectionTracks = () => {
+                const senders = pc.getSenders();
+                const receivers = pc.getReceivers();
+                
+                console.log('Peer Connection Tracks:', {
+                senders: senders.map(sender => ({
+                    track: sender.track?.kind,
+                    trackId: sender.track?.id
+                })),
+                receivers: receivers.map(receiver => ({
+                    track: receiver.track?.kind,
+                    trackId: receiver.track?.id
+                }))
+                });
+            }
+            
+            pc.getReceivers().forEach((receiver) => {
+                const track = receiver.track;
+                console.log("Received track:", track);
+                addRemoteStream(remoteUserId, track);
+                logPeerConnectionTracks();
+                // Update the keys to re-render RemoteVideo components
+                setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
+            });
+
         } catch (err) {
             console.error("Error in handleOffer:", err);
         }
@@ -513,31 +542,7 @@ export default function ClientRoom({ roomId }: Props) {
 
             processPendingCandidates(fromUserId);
 
-            // // Delay ontrack stream handling
-            // pc.ontrack = (event) => {
-            //     console.log(`Received track from ${fromUserId}:`, event.track);
-
-            //     // Only process the stream if ICE connection is complete
-            //     if (pc.connectionState === "connected") {
-            //         addRemoteStream(fromUserId, event.track);
-
-            //         console.log(
-            //             "Tracks in the remote stream:",
-            //             event.streams[0]?.getTracks()
-            //         );
-            //         event.streams[0]?.getTracks().forEach((track) => {
-            //             console.log(
-            //                 `Track kind: ${track.kind}, readyState: ${track.readyState}`
-            //             );
-            //         });
-
-            //         setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
-            //     } else {
-            //         console.warn(
-            //             `Skipping track processing for ${fromUserId} due to incomplete ICE connection.`
-            //         );
-            //     }
-            // };
+            
         } catch (err) {
             console.error("Error in handleAnswer:", err);
         }

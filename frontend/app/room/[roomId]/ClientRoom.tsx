@@ -676,30 +676,36 @@ export default function ClientRoom({ roomId }: Props) {
      * Render
      */
     return (
-        <section style={{ marginTop: "1rem" }}>
-            <h3>Client Room Component</h3>
-            <p>User ID: {userId}</p>
-            <p>Room ID: {roomId}</p>
-
-            {/* Only render media elements on client side */}
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+        <section className="mt-4 p-6 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg">
+            {/* <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">
+                Client Room Component
+            </h3> */}
+            {/* <div className="text-gray-700 dark:text-gray-300 mb-6">
+                <p>
+                    <span className="font-semibold">User ID:</span> {userId}
+                </p>
+                <p>
+                    <span className="font-semibold">Room ID:</span> {roomId}
+                </p>
+            </div> */}
+    
+            {/* Media elements */}
+            <div className="flex gap-6 flex-wrap">
                 {/* Local video */}
-                <div>
-                    <h4>My Video</h4>
+                <div className="flex flex-col items-center">
+                    <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        My Video
+                    </h4>
                     <video
                         ref={localVideoRef}
                         muted
                         autoPlay
                         playsInline
-                        style={{
-                            width: 320,
-                            backgroundColor: "#000",
-                            border: "1px solid #ccc",
-                        }}
+                        className="w-80 h-56 bg-black border border-gray-300 rounded-md shadow-md"
                         controls
                     />
                 </div>
-
+    
                 {/* Remote videos for each user */}
                 {remoteStreamsKeys.map((userId) => (
                     <RemoteVideo
@@ -711,6 +717,7 @@ export default function ClientRoom({ roomId }: Props) {
             </div>
         </section>
     );
+    
 }
 
 /**
@@ -731,21 +738,11 @@ function RemoteVideo({
                 ref.current.pause(); // Stop any previous playback
                 ref.current.srcObject = stream; // Attach the new MediaStream
 
-                console.log(
-                    `Setting video srcObject for user ${userId}`,
-                    stream
+                console.log(`Setting video srcObject for user ${userId}`, stream);
+                console.log("Tracks in the attached stream:", stream.getTracks());
+                stream.getTracks().forEach((track) =>
+                    console.log(`Track kind: ${track.kind}, readyState: ${track.readyState}`)
                 );
-                console.log(
-                    "Tracks in the attached stream:",
-                    stream.getTracks()
-                );
-                stream
-                    .getTracks()
-                    .forEach((track) =>
-                        console.log(
-                            `Track kind: ${track.kind}, readyState: ${track.readyState}`
-                        )
-                    );
                 const playVideo = async () => {
                     ref.current
                         .play()
@@ -759,20 +756,19 @@ function RemoteVideo({
                 playVideo();
             }
         }
-
-        // }
     }, [stream, userId]);
 
     return (
-        <div>
-            {userId}
-            <h4>Remote User: {userId}</h4>
+        <div className="flex flex-col items-center">
+            <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Remote User: {userId}
+            </h4>
             <video
                 ref={ref}
                 muted // Required for autoplay
                 autoPlay
                 playsInline
-                style={{ width: 320, backgroundColor: "#000" }}
+                className="w-80 h-56 bg-black border border-gray-300 rounded-md shadow-md"
                 controls
             />
         </div>

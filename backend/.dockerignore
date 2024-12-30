@@ -1,0 +1,69 @@
+# Dependency directories
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Version control
+.git
+.gitignore
+
+# IDE and editor folders
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+
+# Development-specific files
+nodemon.json
+.eslintrc
+.prettierrc
+
+# TypeScript specific
+tsconfig.tsbuildinfo
+
+# Backup files
+*.bak
+*.backup
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Unnecessary project files
+README.md
+CONTRIBUTING.md
+CHANGELOG.md
+
+# Docker-specific
+Dockerfile
+.dockerignore
+docker-compose*.yml

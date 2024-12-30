@@ -52,7 +52,7 @@ export default function ClientRoom({ roomId }: Props) {
                 video: {
                     displaySurface: "browser",
                 },
-                audio: false,
+                audio: false,   
             });
             if (stream) {
                 console.log("Local stream acquired:", stream);
@@ -693,22 +693,28 @@ export default function ClientRoom({ roomId }: Props) {
             <div className="flex gap-6 flex-wrap">
                 {/* Local video */}
                 <div className="flex flex-col items-center">
-                    <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    {/* <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
                         My Video
-                    </h4>
-                    <video
+                    </h4> */}
+                    {/* <video
                         ref={localVideoRef}
                         muted
                         autoPlay
                         playsInline
                         className="w-80 h-56 bg-black border border-gray-300 rounded-md shadow-md"
                         controls
-                    />
+                    /> */}
+                    <ResizableVideo videoRef={localVideoRef} />
                 </div>
     
                 {/* Remote videos for each user */}
                 {remoteStreamsKeys.map((userId) => (
-                    <RemoteVideo
+                    // <RemoteVideo
+                    //     key={userId}
+                    //     userId={userId}
+                    //     stream={remoteStreamsRef.current[userId]}
+                    // />
+                    <ResizableVideo
                         key={userId}
                         userId={userId}
                         stream={remoteStreamsRef.current[userId]}
@@ -774,3 +780,100 @@ function RemoteVideo({
         </div>
     );
 }
+
+const ResizableVideo = ({ 
+    videoRef, 
+    userId = 'Local', 
+    stream = null,
+    muted = true, 
+    autoPlay = true, 
+    playsInline = true 
+  }) => {
+    const [isResizing, setIsResizing] = useState(false);
+    const [size, setSize] = useState({ width: 320, height: 240 });
+    const containerRef = useRef<HTMLDivElement>(null);
+    const localRef = useRef<HTMLVideoElement>(null);
+  
+    // Use the passed videoRef or fallback to local ref
+    const videoElementRef = videoRef || localRef;
+  
+    useEffect(() => {
+      if (stream && videoElementRef.current) {
+        videoElementRef.current.srcObject = stream;
+        
+        const playVideo = async () => {
+          try {
+            await videoElementRef.current?.play();
+          } catch (error) {
+            console.error('Error playing video:', error);
+          }
+        };
+        
+        playVideo();
+      }
+    }, [stream]);
+  
+    const handleMouseDown = (e: React.MouseEvent) => {
+      setIsResizing(true);
+      e.preventDefault();
+    };
+  
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !containerRef.current) return;
+  
+      const rect = containerRef.current.getBoundingClientRect();
+      const newWidth = e.clientX - rect.left;
+      const newHeight = e.clientY - rect.top;
+  
+      setSize({
+        width: Math.max(newWidth, 160), // Minimum width
+        height: Math.max(newHeight, 90)  // Minimum height
+      });
+    };
+  
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+  
+    useEffect(() => {
+      if (isResizing) {
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+      }
+  
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }, [isResizing]);
+  
+    return (
+      <div 
+        ref={containerRef}
+        className="relative group flex flex-col items-center"
+        style={{ 
+          width: `${size.width}px`, 
+          height: `${size.height}px` 
+        }}
+      >
+        <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+          {stream ? `Remote User: ${userId}` : 'My Video'}
+        </h4>
+        <div className="relative w-full h-full">
+          <video
+            ref={videoElementRef}
+            muted={muted}
+            autoPlay={autoPlay}
+            playsInline={playsInline}
+            className="w-full h-full bg-black border border-gray-300 rounded-md shadow-md"
+            controls
+            style={{ objectFit: 'cover' }}
+          />
+          <div 
+            onMouseDown={handleMouseDown}
+            className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 opacity-50 cursor-se-resize hover:opacity-75 group-hover:visible invisible"
+          />
+        </div>
+      </div>
+    );
+  };

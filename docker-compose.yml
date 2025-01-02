@@ -1,40 +1,40 @@
-version: '3.8'
-services:
-  backend:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      - NODE_ENV=production
-    # depends_on:
-    #   - database  # Add if you're using a database
-
-  frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-    depends_on:
-      - backend
-
-
 # version: '3.8'
 # services:
 #   backend:
-#     image: nileshbhoi/streamit-backend:latest
+#     build: 
+#       context: ./backend
+#       dockerfile: Dockerfile
 #     ports:
 #       - "8080:8080"
 #     environment:
 #       - NODE_ENV=production
+#     # depends_on:
+#     #   - database  # Add if you're using a database
 
 #   frontend:
-#     image: nileshbhoi/streamit-frontend:latest
+#     build: 
+#       context: ./frontend
+#       dockerfile: Dockerfile
 #     ports:
 #       - "3000:3000"
+#     environment:
+#       - NODE_ENV=production
 #     depends_on:
 #       - backend
+
+
+version: '3.8'
+services:
+  backend:
+    image: nileshbhoi/streamit-backend:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+
+  frontend:
+    image: nileshbhoi/streamit-frontend:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend

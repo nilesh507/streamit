@@ -22,14 +22,19 @@ services:
     depends_on:
       - backend
 
-  # Optional: Add database service if needed
-  # database:
-  #   image: postgres:13
-  #   environment:
-  #     POSTGRES_DB: yourdbname
-  #     POSTGRES_PASSWORD: yourpassword
-  #   volumes:
-  #     - postgres-data:/var/lib/postgresql/data
 
-# volumes:
-  # postgres-data:  # Uncomment if using database
+# version: '3.8'
+# services:
+#   backend:
+#     image: nileshbhoi/streamit-backend:latest
+#     ports:
+#       - "8080:8080"
+#     environment:
+#       - NODE_ENV=production
+
+#   frontend:
+#     image: nileshbhoi/streamit-frontend:latest
+#     ports:
+#       - "3000:3000"
+#     depends_on:
+#       - backend

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, RefObject } from "react";
 
 interface Props {
     roomId: string;
@@ -22,7 +22,7 @@ export default function ClientRoom({ roomId }: Props) {
     const localVideoRef = useRef<HTMLVideoElement>(null);
 
     // Store local stream (our camera or mic), State for triggering re-renders when necessary
-    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+    // const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
     // A map of "remoteUserId" => RTCPeerConnection
     const [peers] = useState<Map<string, RTCPeerConnection>>(() => new Map());
@@ -48,12 +48,21 @@ export default function ClientRoom({ roomId }: Props) {
     const getLocalVideoTracks = useCallback(async () => {
         try {
             console.log("Getting local media stream...");
+
+            // for the screen sharing
             const stream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
                     displaySurface: "browser",
                 },
-                audio: false,   
+                audio: false,
             });
+
+            // for the camera
+            // const stream = await navigator.mediaDevices.getUserMedia({
+            //     video: true,
+            //     audio: false,
+            // });
+
             if (stream) {
                 console.log("Local stream acquired:", stream);
                 // Attach stream to the local video element
@@ -63,7 +72,7 @@ export default function ClientRoom({ roomId }: Props) {
                 // Update both the ref and the state
                 localStreamRef.current = stream;
                 // Save stream to state for use in WebRTC connections
-                setLocalStream(stream);
+                // setLocalStream(stream);
             } else {
                 console.warn("No local stream available");
             }
@@ -86,12 +95,18 @@ export default function ClientRoom({ roomId }: Props) {
     function addTracksAfterICEGathering(pc: RTCPeerConnection) {
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach((track) => {
-                const existingSenders = pc.getSenders().map((sender) => sender.track);
+                const existingSenders = pc
+                    .getSenders()
+                    .map((sender) => sender.track);
                 if (!existingSenders.includes(track)) {
-                    console.log(`Adding local track (${track.kind}) to PeerConnection`);
+                    console.log(
+                        `Adding local track (${track.kind}) to PeerConnection`
+                    );
                     pc.addTrack(track, localStreamRef.current!);
                 } else {
-                    console.log(`Track (${track.kind}) already added to PeerConnection`);
+                    console.log(
+                        `Track (${track.kind}) already added to PeerConnection`
+                    );
                 }
             });
         } else {
@@ -109,7 +124,8 @@ export default function ClientRoom({ roomId }: Props) {
                 console.log("double checking ", localStreamRef.current);
 
                 // Set up WebSocket connection
-                const ws = new WebSocket("ws://localhost:8080");
+                const wsUrl = process.env.WEBSOCKET_URL || "ws://localhost:8080";
+                const ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {
                     console.log("WebSocket connected");
@@ -148,7 +164,7 @@ export default function ClientRoom({ roomId }: Props) {
                                 message.fromUserId,
                                 message.toUserId,
                                 message.sdp,
-                                ws
+                                // ws
                             );
                             break;
 
@@ -158,7 +174,7 @@ export default function ClientRoom({ roomId }: Props) {
                                 message.fromUserId,
                                 message.toUserId,
                                 message.candidate,
-                                ws
+                                // ws
                             );
                             break;
 
@@ -204,8 +220,8 @@ export default function ClientRoom({ roomId }: Props) {
 
         initializeConnection();
     }, [userId, roomId, getLocalVideoTracks]);
-
-    const sendMessage = (ws: WebSocket, message: any) => {
+    
+    const sendMessage = (ws: WebSocket, message: unknown) => {
         if (ws.readyState !== WebSocket.OPEN) {
             console.error(
                 "WebSocket is not open. Cannot send message:",
@@ -336,7 +352,9 @@ export default function ClientRoom({ roomId }: Props) {
                     pc.iceConnectionState
                 );
                 if (pc.iceConnectionState === "connected") {
-                    console.log("ICE connection established. Adding tracks (if needed).");
+                    console.log(
+                        "ICE connection established. Adding tracks (if needed)."
+                    );
                     addTracksAfterICEGathering(pc);
                 }
             };
@@ -345,19 +363,19 @@ export default function ClientRoom({ roomId }: Props) {
             const logPeerConnectionTracks = () => {
                 const senders = pc.getSenders();
                 const receivers = pc.getReceivers();
-                
-                console.log('Peer Connection Tracks:', {
-                senders: senders.map(sender => ({
-                    track: sender.track?.kind,
-                    trackId: sender.track?.id
-                })),
-                receivers: receivers.map(receiver => ({
-                    track: receiver.track?.kind,
-                    trackId: receiver.track?.id
-                }))
+
+                console.log("Peer Connection Tracks:", {
+                    senders: senders.map((sender) => ({
+                        track: sender.track?.kind,
+                        trackId: sender.track?.id,
+                    })),
+                    receivers: receivers.map((receiver) => ({
+                        track: receiver.track?.kind,
+                        trackId: receiver.track?.id,
+                    })),
                 });
-            }
-            
+            };
+
             pc.ontrack = (event) => {
                 console.log(
                     `Received track from -- ${remoteUserId}:`,
@@ -368,7 +386,6 @@ export default function ClientRoom({ roomId }: Props) {
                 // Update the keys to re-render RemoteVideo components
                 setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
             };
-  
         } catch (err) {
             console.error("Error in handleNewUser:", err);
         }
@@ -441,7 +458,6 @@ export default function ClientRoom({ roomId }: Props) {
             // console.log("Sending answer message:", message);
             sendMessage(ws, message);
 
-
             pc.onconnectionstatechange = () => {
                 console.log(
                     `Connection state for : ${remoteUserId}:`,
@@ -468,19 +484,19 @@ export default function ClientRoom({ roomId }: Props) {
             const logPeerConnectionTracks = () => {
                 const senders = pc.getSenders();
                 const receivers = pc.getReceivers();
-                
-                console.log('Peer Connection Tracks:', {
-                senders: senders.map(sender => ({
-                    track: sender.track?.kind,
-                    trackId: sender.track?.id
-                })),
-                receivers: receivers.map(receiver => ({
-                    track: receiver.track?.kind,
-                    trackId: receiver.track?.id
-                }))
+
+                console.log("Peer Connection Tracks:", {
+                    senders: senders.map((sender) => ({
+                        track: sender.track?.kind,
+                        trackId: sender.track?.id,
+                    })),
+                    receivers: receivers.map((receiver) => ({
+                        track: receiver.track?.kind,
+                        trackId: receiver.track?.id,
+                    })),
                 });
-            }
-            
+            };
+
             pc.getReceivers().forEach((receiver) => {
                 const track = receiver.track;
                 console.log("Received track:", track);
@@ -489,7 +505,6 @@ export default function ClientRoom({ roomId }: Props) {
                 // Update the keys to re-render RemoteVideo components
                 setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
             });
-
         } catch (err) {
             console.error("Error in handleOffer:", err);
         }
@@ -499,7 +514,7 @@ export default function ClientRoom({ roomId }: Props) {
         fromUserId: string,
         toUserId: string,
         answer: RTCSessionDescriptionInit,
-        ws: WebSocket
+        // ws: WebSocket
     ) {
         try {
             console.log(
@@ -541,8 +556,6 @@ export default function ClientRoom({ roomId }: Props) {
             });
 
             processPendingCandidates(fromUserId);
-
-            
         } catch (err) {
             console.error("Error in handleAnswer:", err);
         }
@@ -597,7 +610,7 @@ export default function ClientRoom({ roomId }: Props) {
         fromUserId: string,
         toUserId: string,
         candidate: RTCIceCandidateInit,
-        ws: WebSocket
+        // ws: WebSocket
     ) {
         console.log("Handling ICE candidate for:", fromUserId);
         const pc = peers.get(fromUserId); //////////////
@@ -688,7 +701,7 @@ export default function ClientRoom({ roomId }: Props) {
                     <span className="font-semibold">Room ID:</span> {roomId}
                 </p>
             </div> */}
-    
+
             {/* Media elements */}
             <div className="flex gap-6 flex-wrap">
                 {/* Local video */}
@@ -706,7 +719,7 @@ export default function ClientRoom({ roomId }: Props) {
                     /> */}
                     <ResizableVideo videoRef={localVideoRef} />
                 </div>
-    
+
                 {/* Remote videos for each user */}
                 {remoteStreamsKeys.map((userId) => (
                     // <RemoteVideo
@@ -723,157 +736,176 @@ export default function ClientRoom({ roomId }: Props) {
             </div>
         </section>
     );
-    
 }
 
 /**
  * A small sub-component for rendering a remote MediaStream.
  */
-function RemoteVideo({
-    userId,
-    stream,
-}: {
-    userId: string;
-    stream: MediaStream;
-}) {
-    const ref = useRef<HTMLVideoElement>(null);
+// function RemoteVideo({
+//     userId,
+//     stream,
+// }: {
+//     userId: string;
+//     stream: MediaStream;
+// }) {
+//     const ref = useRef<HTMLVideoElement>(null);
 
-    useEffect(() => {
-        if (ref.current) {
-            if (ref.current.srcObject !== stream) {
-                ref.current.pause(); // Stop any previous playback
-                ref.current.srcObject = stream; // Attach the new MediaStream
+//     useEffect(() => {
+//         if (ref.current) {
+//             if (ref.current.srcObject !== stream) {
+//                 ref.current.pause(); // Stop any previous playback
+//                 ref.current.srcObject = stream; // Attach the new MediaStream
 
-                console.log(`Setting video srcObject for user ${userId}`, stream);
-                console.log("Tracks in the attached stream:", stream.getTracks());
-                stream.getTracks().forEach((track) =>
-                    console.log(`Track kind: ${track.kind}, readyState: ${track.readyState}`)
-                );
-                const playVideo = async () => {
-                    ref.current
-                        .play()
-                        .catch((err) =>
-                            console.error(
-                                `Error playing video for user ${userId}:`,
-                                err
-                            )
-                        );
-                };
-                playVideo();
-            }
-        }
-    }, [stream, userId]);
+//                 console.log(
+//                     `Setting video srcObject for user ${userId}`,
+//                     stream
+//                 );
+//                 console.log(
+//                     "Tracks in the attached stream:",
+//                     stream.getTracks()
+//                 );
+//                 stream
+//                     .getTracks()
+//                     .forEach((track) =>
+//                         console.log(
+//                             `Track kind: ${track.kind}, readyState: ${track.readyState}`
+//                         )
+//                     );
+//                 const playVideo = async () => {
+//                     ref.current
+//                         .play()
+//                         .catch((err) =>
+//                             console.error(
+//                                 `Error playing video for user ${userId}:`,
+//                                 err
+//                             )
+//                         );
+//                 };
+//                 playVideo();
+//             }
+//         }
+//     }, [stream, userId]);
 
-    return (
-        <div className="flex flex-col items-center">
-            <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Remote User: {userId}
-            </h4>
-            <video
-                ref={ref}
-                muted // Required for autoplay
-                autoPlay
-                playsInline
-                className="w-80 h-56 bg-black border border-gray-300 rounded-md shadow-md"
-                controls
-            />
-        </div>
-    );
-}
+//     return (
+//         <div className="flex flex-col items-center">
+//             <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+//                 Remote User: {userId}
+//             </h4>
+//             <video
+//                 ref={ref}
+//                 muted // Required for autoplay
+//                 autoPlay
+//                 playsInline
+//                 className="w-80 h-56 bg-black border border-gray-300 rounded-md shadow-md"
+//                 controls
+//             />
+//         </div>
+//     );
+// }
 
-const ResizableVideo = ({ 
-    videoRef, 
-    userId = 'Local', 
+type ResizableVideoProps = {
+  videoRef?: RefObject<HTMLVideoElement>;
+  userId?: string;
+  stream?: MediaStream | null;
+  muted?: boolean;
+  autoPlay?: boolean;
+  playsInline?: boolean;
+};
+  
+
+const ResizableVideo: React.FC<ResizableVideoProps> = ({
+    videoRef,
+    userId = "Local",
     stream = null,
-    muted = true, 
-    autoPlay = true, 
-    playsInline = true 
-  }) => {
+    muted = true,
+    autoPlay = true,
+    playsInline = true,
+}) => {
     const [isResizing, setIsResizing] = useState(false);
     const [size, setSize] = useState({ width: 320, height: 240 });
     const containerRef = useRef<HTMLDivElement>(null);
     const localRef = useRef<HTMLVideoElement>(null);
-  
+
     // Use the passed videoRef or fallback to local ref
     const videoElementRef = videoRef || localRef;
-  
+
     useEffect(() => {
-      if (stream && videoElementRef.current) {
-        videoElementRef.current.srcObject = stream;
-        
-        const playVideo = async () => {
-          try {
-            await videoElementRef.current?.play();
-          } catch (error) {
-            console.error('Error playing video:', error);
-          }
-        };
-        
-        playVideo();
-      }
+        if (stream && videoElementRef.current) {
+            videoElementRef.current.srcObject = stream;
+
+            const playVideo = async () => {
+                try {
+                    await videoElementRef.current?.play();
+                } catch (error) {
+                    console.error("Error playing video:", error);
+                }
+            };
+
+            playVideo();
+        }
     }, [stream]);
-  
+
     const handleMouseDown = (e: React.MouseEvent) => {
-      setIsResizing(true);
-      e.preventDefault();
+        e.preventDefault();
+        setIsResizing(true);
     };
-  
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || !containerRef.current) return;
-  
-      const rect = containerRef.current.getBoundingClientRect();
-      const newWidth = e.clientX - rect.left;
-      const newHeight = e.clientY - rect.top;
-  
-      setSize({
-        width: Math.max(newWidth, 160), // Minimum width
-        height: Math.max(newHeight, 90)  // Minimum height
-      });
+        if (!isResizing || !containerRef.current) return;
+
+        const rect = containerRef.current.getBoundingClientRect();
+        const newWidth = e.clientX - rect.left;
+        const newHeight = e.clientY - rect.top;
+
+        setSize({
+            width: Math.max(newWidth, 160), // Minimum width
+            height: Math.max(newHeight, 90), // Minimum height
+        });
     };
-  
+
     const handleMouseUp = () => {
-      setIsResizing(false);
+        setIsResizing(false);
     };
-  
+
     useEffect(() => {
-      if (isResizing) {
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
-      }
-  
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
+        if (isResizing) {
+            window.addEventListener("mousemove", handleMouseMove);
+            window.addEventListener("mouseup", handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+        };
     }, [isResizing]);
-  
+
     return (
-      <div 
-        ref={containerRef}
-        className="relative group flex flex-col items-center"
-        style={{ 
-          width: `${size.width}px`, 
-          height: `${size.height}px` 
-        }}
-      >
-        <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
-          {stream ? `Remote User: ${userId}` : 'My Video'}
-        </h4>
-        <div className="relative w-full h-full">
-          <video
-            ref={videoElementRef}
-            muted={muted}
-            autoPlay={autoPlay}
-            playsInline={playsInline}
-            className="w-full h-full bg-black border border-gray-300 rounded-md shadow-md"
-            controls
-            style={{ objectFit: 'cover' }}
-          />
-          <div 
-            onMouseDown={handleMouseDown}
-            className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 opacity-50 cursor-se-resize hover:opacity-75 group-hover:visible invisible"
-          />
+        <div
+            ref={containerRef}
+            className="relative group flex flex-col items-center"
+            style={{
+                width: `${size.width}px`,
+                height: `${size.height}px`,
+            }}
+        >
+            <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                {stream ? `Remote User: ${userId}` : "My Video"}
+            </h4>
+            <div className="relative w-full h-full">
+                <video
+                    ref={videoElementRef}
+                    muted={muted}
+                    autoPlay={autoPlay}
+                    playsInline={playsInline}
+                    className="w-full h-full bg-black border border-gray-300 rounded-md shadow-md"
+                    controls
+                    style={{ objectFit: "cover" }}
+                />
+                <div
+                    onMouseDown={handleMouseDown}
+                    className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 opacity-50 cursor-se-resize hover:opacity-75 group-hover:visible invisible"
+                />
+            </div>
         </div>
-      </div>
     );
-  };
+};

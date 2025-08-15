@@ -124,7 +124,8 @@ export default function ClientRoom({ roomId }: Props) {
                 console.log("double checking ", localStreamRef.current);
 
                 // Set up WebSocket connection
-                const wsUrl = process.env.WEBSOCKET_URL || "ws://localhost:8080";
+                // const wsUrl = process.env.WEBSOCKET_URL || "ws://localhost:8080";
+                const wsUrl = process.env.WEBSOCKET_URL;
                 const ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {

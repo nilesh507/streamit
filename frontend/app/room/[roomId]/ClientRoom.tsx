@@ -125,7 +125,10 @@ export default function ClientRoom({ roomId }: Props) {
 
                 // Set up WebSocket connection
                 // const wsUrl = process.env.WEBSOCKET_URL || "ws://localhost:8080";
-                const wsUrl = process.env.WEBSOCKET_URL;
+                const BASE = process.env.WEBSOCKET_URL!; 
+                if (!BASE?.startsWith("ws")) console.error("Missing NEXT_PUBLIC_WS_URL");
+                // const wsUrl = process.env.WEBSOCKET_URL;
+                const wsUrl = `${BASE}?room=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`;
                 const ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {

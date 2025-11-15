@@ -144,6 +144,16 @@ export default function ClientRoom({ roomId }: Props) {
                     console.log("Received message:", message);
 
                     switch (message.type) {
+                        case "existingUsers":
+                            // When you join, the server sends you a list of existing users
+                            console.log("Handling existing users:", message.users);
+                            for (const user of message.users) {
+                                if (user.id !== userId) {
+                                    handleNewUser(user.id, ws);
+                                }
+                            }
+                            break;
+
                         case "joinedRoom":
                             console.log("Successfully joined room:", message);
                             break;
@@ -245,6 +255,12 @@ export default function ClientRoom({ roomId }: Props) {
     };
 
     async function handleNewUser(remoteUserId: string, ws: WebSocket) {
+        // Add a "politeness" check to prevent glare. The peer with the lower ID is responsible for making the offer.
+        if (userId >= remoteUserId) {
+            console.log(`Skipping offer for ${remoteUserId}, my ID (${userId}) is not smaller.`);
+            return;
+        }
+
         try {
             if (peers.has(remoteUserId)) {
                 console.warn(
@@ -262,9 +278,12 @@ export default function ClientRoom({ roomId }: Props) {
             const pc = new RTCPeerConnection({
                 iceServers: [
                     { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" },
                     {
-                        urls: "turn:openrelay.metered.ca:80",
+                        urls: [
+                            "turn:openrelay.metered.ca:80",
+                            "turn:openrelay.metered.ca:443",
+                            "turns:openrelay.metered.ca:443?transport=tcp",
+                        ],
                         username: "openrelayproject",
                         credential: "openrelayproject",
                     },
@@ -308,7 +327,7 @@ export default function ClientRoom({ roomId }: Props) {
 
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log("Sending ICE candidate:", event.candidate);
+                    console.log(`Sending ICE candidate for ${remoteUserId}:`, event.candidate.type, event.candidate.address);
                     const candidateMessage = {
                         type: "iceCandidate",
                         fromUserId: userId,
@@ -423,9 +442,12 @@ export default function ClientRoom({ roomId }: Props) {
             const pc = new RTCPeerConnection({
                 iceServers: [
                     { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" },
                     {
-                        urls: "turn:openrelay.metered.ca:80",
+                        urls: [
+                            "turn:openrelay.metered.ca:80",
+                            "turn:openrelay.metered.ca:443",
+                            "turns:openrelay.metered.ca:443?transport=tcp",
+                        ],
                         username: "openrelayproject",
                         credential: "openrelayproject",
                     },
@@ -445,7 +467,7 @@ export default function ClientRoom({ roomId }: Props) {
 
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log("Sending ICE candidate:", event.candidate);
+                    console.log(`Sending ICE candidate for ${remoteUserId}:`, event.candidate.type, event.candidate.address);
                     const candidateMessage = {
                         type: "iceCandidate",
                         fromUserId: userId,

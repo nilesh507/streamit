@@ -277,15 +277,15 @@ export default function ClientRoom({ roomId }: Props) {
 
             const pc = new RTCPeerConnection({
                 iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun.cloudflare.com:3478" },
                     {
                         urls: [
-                            "turn:openrelay.metered.ca:80",
-                            "turn:openrelay.metered.ca:443",
-                            "turns:openrelay.metered.ca:443?transport=tcp",
+                            "turn:turn.cloudflare.com:3478?transport=udp",
+                            "turn:turn.cloudflare.com:3478?transport=tcp",
+                            "turns:turn.cloudflare.com:5349?transport=tcp",
                         ],
-                        username: "openrelayproject",
-                        credential: "openrelayproject",
+                        username: " ", // Not required by Cloudflare, but property must be present
+                        credential: " ", // Not required by Cloudflare, but property must be present
                     },
                 ],
             });
@@ -441,15 +441,15 @@ export default function ClientRoom({ roomId }: Props) {
 
             const pc = new RTCPeerConnection({
                 iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
+                    { urls: "stun:stun.cloudflare.com:3478" },
                     {
                         urls: [
-                            "turn:openrelay.metered.ca:80",
-                            "turn:openrelay.metered.ca:443",
-                            "turns:openrelay.metered.ca:443?transport=tcp",
+                            "turn:turn.cloudflare.com:3478?transport=udp",
+                            "turn:turn.cloudflare.com:3478?transport=tcp",
+                            "turns:turn.cloudflare.com:5349?transport=tcp",
                         ],
-                        username: "openrelayproject",
-                        credential: "openrelayproject",
+                        username: " ", // Not required by Cloudflare, but property must be present
+                        credential: " ", // Not required by Cloudflare, but property must be present
                     },
                 ],
             });

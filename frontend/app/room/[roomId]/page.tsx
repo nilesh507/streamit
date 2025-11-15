@@ -3,9 +3,9 @@ import ClientRoom from "./ClientRoom";
 export default async function RoomPage({
   params,
 }: {
-  params: { roomId: string };
+  params: Promise<{ roomId: string }>;
 }) {
-  const { roomId } = params;
+  const { roomId } = await params;
 
   return (
     <main className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 p-6">

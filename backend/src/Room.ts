@@ -1,4 +1,4 @@
-// Updated Room.ts with getUser implementation
+// Room.ts with getUser implementation
 import { User } from "./User";
 
 export class Room {

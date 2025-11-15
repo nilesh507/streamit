@@ -1,4 +1,4 @@
-// server.ts
+// server index.ts
 import { WebSocket, WebSocketServer } from "ws";
 import { RoomManager } from "./RoomManager";
 import { User } from "./User";

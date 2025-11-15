@@ -18,6 +18,7 @@ interface Props {
 export default function ClientRoom({ roomId }: Props) {
     const searchParams = useSearchParams();
     const userId = searchParams.get("userId") || "";
+    const name = searchParams.get("name") || "";
 
     const localVideoRef = useRef<HTMLVideoElement>(null);
 
@@ -50,18 +51,18 @@ export default function ClientRoom({ roomId }: Props) {
             console.log("Getting local media stream...");
 
             // for the screen sharing
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    displaySurface: "browser",
-                },
-                audio: false,
-            });
-
-            // for the camera
-            // const stream = await navigator.mediaDevices.getUserMedia({
-            //     video: true,
+            // const stream = await navigator.mediaDevices.getDisplayMedia({
+            //     video: {
+            //         displaySurface: "browser",
+            //     },
             //     audio: false,
             // });
+
+            // for the camera
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: false,
+            });
 
             if (stream) {
                 console.log("Local stream acquired:", stream);
@@ -114,6 +115,9 @@ export default function ClientRoom({ roomId }: Props) {
         }
     }
 
+    const BASE = process.env.NEXT_PUBLIC_WS_URL ?? (typeof window !== "undefined" && location.hostname === "localhost" ? "ws://127.0.0.1:8787/ws" : undefined);
+    console.log("WS BASE =", BASE);
+
     useEffect(() => {
         const initializeConnection = async () => {
             try {
@@ -125,17 +129,14 @@ export default function ClientRoom({ roomId }: Props) {
 
                 // Set up WebSocket connection
                 // const wsUrl = process.env.WEBSOCKET_URL || "ws://localhost:8080";
-                const BASE = process.env.WEBSOCKET_URL!; 
-                if (!BASE?.startsWith("ws")) console.error("Missing NEXT_PUBLIC_WS_URL");
+                // if (!BASE?.startsWith("ws")) console.error("Missing NEXT_PUBLIC_WS_URL");
                 // const wsUrl = process.env.WEBSOCKET_URL;
-                const wsUrl = `${BASE}?room=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`;
+                const wsUrl = `${BASE}/ws?roomId=${roomId}&userId=${userId}&name=${name}`;
                 const ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {
-                    console.log("WebSocket connected");
-                    const joinMessage = { type: "joinRoom", roomId, userId };
-                    // console.log("Sending join message:", joinMessage);
-                    ws.send(JSON.stringify(joinMessage));
+                    console.log("Connected to signaling server");
+                    // No longer need to send joinRoom message, it's handled by query params
                 };
 
                 ws.onmessage = async (event) => {
@@ -223,7 +224,7 @@ export default function ClientRoom({ roomId }: Props) {
         };
 
         initializeConnection();
-    }, [userId, roomId, getLocalVideoTracks]);
+    }, [userId, roomId, getLocalVideoTracks, name]);
     
     const sendMessage = (ws: WebSocket, message: unknown) => {
         if (ws.readyState !== WebSocket.OPEN) {

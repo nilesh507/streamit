@@ -41,9 +41,9 @@ export default function ClientRoom({ roomId }: Props) {
     const remoteStreamsRef = useRef<Record<string, MediaStream>>({});
     const [remoteStreamsKeys, setRemoteStreamsKeys] = useState<string[]>([]);
 
-    const [candidateBuffer, setCandidateBuffer] = useState<{
-        [userId: string]: RTCIceCandidateInit[];
-    }>({});
+    // const [candidateBuffer, setCandidateBuffer] = useState<{
+    //     [userId: string]: RTCIceCandidateInit[];
+    // }>({});
 
     // Memoized stream selection to prevent repeated prompts
     const getLocalVideoTracks = useCallback(async () => {
@@ -115,7 +115,11 @@ export default function ClientRoom({ roomId }: Props) {
         }
     }
 
-    const BASE = process.env.NEXT_PUBLIC_WS_URL ?? (typeof window !== "undefined" && location.hostname === "localhost" ? "ws://127.0.0.1:8787/ws" : undefined);
+    const BASE =
+        process.env.NEXT_PUBLIC_WS_URL ??
+        (typeof window !== "undefined" && location.hostname === "localhost"
+            ? "ws://127.0.0.1:8787/ws"
+            : undefined);
     console.log("WS BASE =", BASE);
 
     useEffect(() => {
@@ -131,6 +135,13 @@ export default function ClientRoom({ roomId }: Props) {
                 // const wsUrl = process.env.WEBSOCKET_URL || "ws://localhost:8080";
                 // if (!BASE?.startsWith("ws")) console.error("Missing NEXT_PUBLIC_WS_URL");
                 // const wsUrl = process.env.WEBSOCKET_URL;
+                if (!BASE) {
+                    console.error(
+                        "Missing NEXT_PUBLIC_WS_URL and not running on localhost"
+                    );
+                    return;
+                }
+
                 const wsUrl = `${BASE}/ws?roomId=${roomId}&userId=${userId}&name=${name}`;
                 const ws = new WebSocket(wsUrl);
 
@@ -212,21 +223,21 @@ export default function ClientRoom({ roomId }: Props) {
                 };
 
                 return () => {
-                    ws.close();
-                    // if (stream) {
-                    //     stream.getTracks().forEach((track) => track.stop());
-                    // }
-                    // peers.forEach((peer) => {
-                    //     peer.close();
-                    // });
-                    // peers.clear();
-
-                    // Stop all tracks in the local stream
-                    if (localStreamRef.current) {
-                        localStreamRef.current
-                            .getTracks()
-                            .forEach((track) => track.stop());
+                ws.close();
+                peers.forEach((peer) => {
+                    try {
+                        peer.close();
+                    } catch (err) {
+                        console.warn("Error closing peer connection:", err);
                     }
+                });
+                peers.clear();
+
+                if (localStreamRef.current) {
+                    localStreamRef.current
+                        .getTracks()
+                        .forEach((track) => track.stop());
+                }
                 };
             } catch (error) {
                 console.error("Error initializing connection:", error);
@@ -255,9 +266,10 @@ export default function ClientRoom({ roomId }: Props) {
     };
 
     async function handleNewUser(remoteUserId: string, ws: WebSocket) {
-        // Add a "politeness" check to prevent glare. The peer with the lower ID is responsible for making the offer.
         if (userId >= remoteUserId) {
-            console.log(`Skipping offer for ${remoteUserId}, my ID (${userId}) is not smaller.`);
+            console.log(
+                `Skipping offer for ${remoteUserId}, my ID (${userId}) is not smaller.`
+            );
             return;
         }
 
@@ -435,56 +447,106 @@ export default function ClientRoom({ roomId }: Props) {
                 offer
             );
 
-            if (peers.has(remoteUserId)) {
-                return peers.get(remoteUserId);
-            }
+            let pc = peers.get(remoteUserId);
 
-            const pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: "stun:stun.cloudflare.com:3478" },
-                    {
-                        urls: [
-                            "turn:turn.cloudflare.com:3478?transport=udp",
-                            "turn:turn.cloudflare.com:3478?transport=tcp",
-                            "turns:turn.cloudflare.com:5349?transport=tcp",
-                        ],
-                        username: " ", // Not required by Cloudflare, but property must be present
-                        credential: " ", // Not required by Cloudflare, but property must be present
-                    },
-                ],
-            });
-            peers.set(remoteUserId, pc);
-
-            // Attach local tracks
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach((track) => {
-                    console.log(
-                        `Adding local track (${track.kind}) to PeerConnection`
-                    );
-                    pc.addTrack(track, localStreamRef.current!);
+            if (!pc) {
+                pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: "stun:stun.cloudflare.com:3478" },
+                        {
+                            urls: [
+                                "turn:turn.cloudflare.com:3478?transport=udp",
+                                "turn:turn.cloudflare.com:3478?transport=tcp",
+                                "turns:turn.cloudflare.com:5349?transport=tcp",
+                            ],
+                            username: " ", // Not required by Cloudflare, but property must be present
+                            credential: " ", // Not required by Cloudflare, but property must be present
+                        },
+                    ],
                 });
+                peers.set(remoteUserId, pc);
+
+                if (localStreamRef.current) {
+                    localStreamRef.current.getTracks().forEach((track) => {
+                        console.log(
+                            `Adding local track (${track.kind}) to PeerConnection`
+                        );
+                        pc!.addTrack(track, localStreamRef.current!);
+                    });
+                }
+
+                pc!.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        console.log(`Sending ICE candidate for ${remoteUserId}:`, event.candidate.type, event.candidate.address);
+                        const candidateMessage = {
+                            type: "iceCandidate",
+                            fromUserId: userId,
+                            toUserId: remoteUserId,
+                            candidate: event.candidate,
+                        };
+                        sendMessage(ws, candidateMessage);
+                    } else {
+                        console.log("All ICE candidates sent.");
+                    }
+                };
+
+                pc!.onconnectionstatechange = () => {
+                    console.log(
+                        `Connection state for : ${remoteUserId}:`,
+                        pc!.connectionState
+                    );
+                };
+
+                pc!.onicegatheringstatechange = () => {
+                    console.log("ICE Gathering State:", pc!.iceGatheringState);
+                };
+
+                pc!.oniceconnectionstatechange = () => {
+                    console.log(
+                        `ICE Connection State for ${toUserId}:`,
+                        pc!.iceConnectionState
+                    );
+                    if (pc!.iceConnectionState === "connected") {
+                        addTracksAfterICEGathering(pc!);
+                    }
+                };
+
+                const logPeerConnectionTracks = () => {
+                    const senders = pc!.getSenders();
+                    const receivers = pc!.getReceivers();
+
+                    console.log("Peer Connection Tracks:", {
+                        senders: senders.map((sender) => ({
+                            track: sender.track?.kind,
+                            trackId: sender.track?.id,
+                        })),
+                        receivers: receivers.map((receiver) => ({
+                            track: receiver.track?.kind,
+                            trackId: receiver.track?.id,
+                        })),
+                    });
+                };
+
+                pc!.ontrack = (event) => {
+                    console.log(
+                        `Received track from ${remoteUserId}:`,
+                        event.track
+                    );
+                    addRemoteStream(remoteUserId, event.track);
+                    logPeerConnectionTracks();
+                    setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
+                };
+            } else {
+                console.log(`Reusing existing PeerConnection for ${remoteUserId}`);
             }
 
-            pc.onicecandidate = (event) => {
-                if (event.candidate) {
-                    console.log(`Sending ICE candidate for ${remoteUserId}:`, event.candidate.type, event.candidate.address);
-                    const candidateMessage = {
-                        type: "iceCandidate",
-                        fromUserId: userId,
-                        toUserId: remoteUserId,
-                        candidate: event.candidate,
-                    };
-                    sendMessage(ws, candidateMessage);
-                } else {
-                    console.log("All ICE candidates sent.");
-                }
-            };
-
-            await pc.setRemoteDescription(offer);
+            await pc!.setRemoteDescription(offer);
             console.log("Successfully set remote description", remoteUserId);
 
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
+            processPendingCandidates(remoteUserId);
+
+            const answer = await pc!.createAnswer();
+            await pc!.setLocalDescription(answer);
 
             const message = {
                 type: "createAnswer",
@@ -492,56 +554,7 @@ export default function ClientRoom({ roomId }: Props) {
                 toUserId: remoteUserId,
                 sdp: answer,
             };
-            // console.log("Sending answer message:", message);
             sendMessage(ws, message);
-
-            pc.onconnectionstatechange = () => {
-                console.log(
-                    `Connection state for : ${remoteUserId}:`,
-                    pc.connectionState
-                );
-            };
-
-            pc.onicegatheringstatechange = () => {
-                console.log("ICE Gathering State:", pc.iceGatheringState);
-            };
-
-            // Add tracks only after ICE gathering is complete
-            pc.oniceconnectionstatechange = () => {
-                console.log(
-                    `ICE Connection State for ${toUserId}:`,
-                    pc.iceConnectionState
-                );
-                if (pc.iceConnectionState === "connected") {
-                    addTracksAfterICEGathering(pc);
-                }
-            };
-
-            // Check track addition on both sides
-            const logPeerConnectionTracks = () => {
-                const senders = pc.getSenders();
-                const receivers = pc.getReceivers();
-
-                console.log("Peer Connection Tracks:", {
-                    senders: senders.map((sender) => ({
-                        track: sender.track?.kind,
-                        trackId: sender.track?.id,
-                    })),
-                    receivers: receivers.map((receiver) => ({
-                        track: receiver.track?.kind,
-                        trackId: receiver.track?.id,
-                    })),
-                });
-            };
-
-            pc.getReceivers().forEach((receiver) => {
-                const track = receiver.track;
-                console.log("Received track:", track);
-                addRemoteStream(remoteUserId, track);
-                logPeerConnectionTracks();
-                // Update the keys to re-render RemoteVideo components
-                setRemoteStreamsKeys(Object.keys(remoteStreamsRef.current));
-            });
         } catch (err) {
             console.error("Error in handleOffer:", err);
         }
@@ -569,28 +582,38 @@ export default function ClientRoom({ roomId }: Props) {
                 return;
             }
 
+            if (
+                pc.signalingState !== "have-local-offer" &&
+                pc.signalingState !== "have-local-pranswer"
+            ) {
+                console.warn(
+                    `Skipping unexpected answer for ${fromUserId} (signalingState=${pc.signalingState})`
+                );
+                return;
+            }
+
             await pc.setRemoteDescription(answer);
             console.log(
                 `Remote description set for ${fromUserId} -- ${pc.getConfiguration()}`
             );
 
             // Process buffered ICE candidates
-            const bufferedCandidates = candidateBuffer[fromUserId] || [];
-            for (const candidate of bufferedCandidates) {
-                try {
-                    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-                    console.log(`Added buffered ICE candidate:`, candidate);
-                } catch (err) {
-                    console.error("Error adding buffered ICE candidate:", err);
-                }
-            }
+            // const bufferedCandidates = candidateBuffer[fromUserId] || [];
+            // for (const candidate of bufferedCandidates) {
+            //     try {
+            //         await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            //         console.log(`Added buffered ICE candidate:`, candidate);
+            //     } catch (err) {
+            //         console.error("Error adding buffered ICE candidate:", err);
+            //     }
+            // }
 
             // Clear the buffer for this user
-            setCandidateBuffer((prev) => {
-                const updated = { ...prev };
-                delete updated[fromUserId];
-                return updated;
-            });
+            // setCandidateBuffer((prev) => {
+            //     const updated = { ...prev };
+            //     delete updated[fromUserId];
+            //     return updated;
+            // });
 
             processPendingCandidates(fromUserId);
         } catch (err) {
@@ -650,17 +673,17 @@ export default function ClientRoom({ roomId }: Props) {
         // ws: WebSocket
     ) {
         console.log("Handling ICE candidate for:", fromUserId);
-        const pc = peers.get(fromUserId); //////////////
+        const pc = peers.get(fromUserId);
         try {
             if (!pc) {
                 console.warn(
-                    `No PeerConnection for user: ${toUserId}. Queuing ICE candidate.`
+                    `No PeerConnection for user: ${fromUserId}. Queuing ICE candidate.`
                 );
                 setPendingCandidates((prev) => ({
                     ...prev,
-                    [toUserId]: {
+                    [fromUserId]: {
                         candidates: [
-                            ...(prev[toUserId]?.candidates || []),
+                            ...(prev[fromUserId]?.candidates || []),
                             candidate,
                         ],
                     },
@@ -671,13 +694,13 @@ export default function ClientRoom({ roomId }: Props) {
             // Check if remote description is set
             if (!pc.remoteDescription) {
                 console.warn(
-                    `Remote description not set for user: ${toUserId}. Queuing ICE candidate.`
+                    `Remote description not set for user: ${fromUserId}. Queuing ICE candidate.`
                 );
                 setPendingCandidates((prev) => ({
                     ...prev,
-                    [toUserId]: {
+                    [fromUserId]: {
                         candidates: [
-                            ...(prev[toUserId]?.candidates || []),
+                            ...(prev[fromUserId]?.candidates || []),
                             candidate,
                         ],
                     },
